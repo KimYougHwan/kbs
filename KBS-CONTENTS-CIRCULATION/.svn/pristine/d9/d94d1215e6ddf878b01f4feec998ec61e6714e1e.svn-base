@@ -1,0 +1,11 @@
+eclipse.preferences.version=1
+encoding//src/main/java=UTF-8
+encoding//src/main/resources=UTF-8
+encoding//src/main/resources/config/properties/system.properties=UTF-8
+encoding//src/main/webapp/WEB-INF/jsp/company/managerCompanyPage.jsp=UTF-8
+encoding//src/main/webapp/WEB-INF/jsp/include/test.jsp=UTF-8
+encoding//src/main/webapp/WEB-INF/jsp/index.jsp=UTF-8
+encoding//src/main/webapp/WEB-INF/jsp/media/pooqVodMangerPage.jsp=UTF-8
+encoding//src/main/webapp/WEB-INF/jsp/member/managerMemberPage.jsp=UTF-8
+encoding//src/test/java=UTF-8
+encoding/<project>=UTF-8

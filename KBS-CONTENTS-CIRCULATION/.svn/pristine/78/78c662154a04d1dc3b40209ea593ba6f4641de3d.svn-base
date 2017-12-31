@@ -1,0 +1,848 @@
+package kr.co.kbs.distribute.program.service.impl;
+
+import java.io.FileInputStream;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+
+import org.apache.poi.hssf.usermodel.HSSFCell;
+import org.apache.poi.hssf.usermodel.HSSFRow;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFCell;
+import org.apache.poi.xssf.usermodel.XSSFRow;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import org.springframework.stereotype.Service;
+import org.springframework.ui.Model;
+import org.springframework.web.multipart.MultipartFile;
+
+import kr.co.kbs.distribute.common.util.FileUtil;
+import kr.co.kbs.distribute.common.util.StringUtil;
+import kr.co.kbs.distribute.common.vo.FileVo;
+import kr.co.kbs.distribute.mapper.program.UsageStatProgramExcelMapper;
+import kr.co.kbs.distribute.program.service.UsageStatProgramExcelService;
+import kr.co.kbs.distribute.program.vo.KtVodExcelTypeOneVo;
+import kr.co.kbs.distribute.program.vo.KtVodExcelTypeTwoVo;
+import kr.co.kbs.distribute.program.vo.LgVodExcelTypeOneVo;
+import kr.co.kbs.distribute.program.vo.NotFoundContentsVo;
+import kr.co.kbs.distribute.program.vo.SkVodExcelTypeOneVo;
+
+@Service
+public class UsageStatProgramExcelServiceImpl implements UsageStatProgramExcelService {
+	
+	@Autowired
+	private Environment env;
+	
+	@Autowired
+	UsageStatProgramExcelMapper mapper;
+
+	@Override
+	public FileVo saveUsageStatProgramExcel(FileVo fileVo, MultipartFile file) throws Exception {
+
+		String path = env.getProperty("file.path");
+		Calendar toDay = Calendar.getInstance();
+		FileVo param = new FileVo();
+		String year = Integer.toString(toDay.get(Calendar.YEAR));
+		String month = Integer.toString((toDay.get(Calendar.MONTH)+1));
+		String date = Integer.toString(toDay.get(Calendar.DATE));
+
+		path = path+"excel/temp";
+		path = path + "/" + year + "/" +month + "/" + date;
+		
+		try{
+			param = FileUtil.uploadFile(file, path);
+			param.setCSeq(fileVo.getCSeq());
+			param.setDistType(fileVo.getDistType());
+			param.setSaveDir(path);
+			mapper.insertExcelTmpfile(param);
+		}catch(Exception e) {
+			log.error("파일 UPLOAD시 에러 발생");
+			FileUtil.fileDelete(param.getSaveFilenm(), path);
+			throw new Exception();
+		}
+		
+		return param;
+		
+	}
+	
+	@Override
+	public boolean checkFileList(FileVo fileVo, Model model) throws Exception {
+		
+		boolean result = false;
+		int cSeq = fileVo.getCSeq();
+		String distType = fileVo.getDistType();
+		String fileName = fileVo.getSaveFilenm();
+		List<String> headerList = new ArrayList<String>();
+		
+		String path = fileVo.getSaveDir();
+		
+		
+		
+		if(cSeq == 11 ) {
+			if("US".equals(distType)) {
+			}
+		}else if( cSeq == 12 ) {
+			
+			FileInputStream fis = null;
+			XSSFWorkbook workbook = null;
+			
+			if("US".equals(distType)) {
+				
+				try {
+					
+					List bodyList = null;
+					List<NotFoundContentsVo> ErrorList = new ArrayList<NotFoundContentsVo>();
+					fis = new FileInputStream(path + "/" + fileName);
+					
+					String titleStr ="";
+					String dateStr ="";
+					String programNm ="";
+					String replaceStr ="";
+					
+					workbook = new XSSFWorkbook(fis);
+					XSSFSheet curSheet;
+		            XSSFRow   curRow;
+		            XSSFCell  curCell;
+		            int lastCell = 0;
+		            int haderRow = 0;
+		            int firstBody = 0;
+		            
+		            curSheet = workbook.getSheetAt(0);
+		            curRow =  curSheet.getRow(haderRow);
+		            lastCell = curRow.getLastCellNum();
+		            
+		            KtVodExcelTypeOneVo typeOneVo = null;
+		            KtVodExcelTypeTwoVo typeTwoVo = null;
+		            
+		            if(lastCell == 6 || lastCell == 12) {
+		            	
+		            	if(lastCell == 6) {
+		            		bodyList = new ArrayList<KtVodExcelTypeTwoVo>();
+		            		firstBody = 1;
+		            	}else if(lastCell == 12) {
+		            		bodyList = new ArrayList<KtVodExcelTypeOneVo>();
+		            		firstBody = 3;
+		            	}
+		            	
+		            	
+		            	for(int rowIndex=0; rowIndex < curSheet.getPhysicalNumberOfRows(); rowIndex++) {
+		            		if(rowIndex != haderRow && rowIndex < firstBody  ) {
+		            			continue;
+		            		}
+		            		curRow =  curSheet.getRow(rowIndex);
+		            		
+		            		if(curRow == null ) {
+		            			continue;
+		            		}
+		            		
+		            		NotFoundContentsVo errorVo = new NotFoundContentsVo();
+		            		
+		            		for(int cellIndex=0;cellIndex<curRow.getPhysicalNumberOfCells(); cellIndex++) {
+		            			curCell = curRow.getCell(cellIndex);
+		            			if(haderRow == rowIndex) {
+		            				String header = "";
+		                        	if(curCell != null) {
+		                        		header = curCell.getStringCellValue();
+		                        	}
+				                	headerList.add(header);
+				                	continue;
+		            			}else {
+		            				String value = "";
+		            				if(curCell != null){
+		            							            					
+			            				switch (curCell.getCellTypeEnum()){
+		                                    case FORMULA:
+		                                        value = curCell.getCellFormula();
+		                                        break;
+		                                    case NUMERIC:
+		                                        value =  String.valueOf((int) Math.round(curCell.getNumericCellValue()));
+		                                        break;
+		                                    case STRING:
+		                                        value = curCell.getStringCellValue();
+		                                        break;
+		                                    case BLANK:
+		                                        value = "0";
+		                                        break;
+		                                    case ERROR:
+		                                        value = curCell.getErrorCellValue()+"";
+		                                        break;
+		                                    default:
+		                                        value = new String();
+		                                        break;
+	                                    }
+		            				}
+		            				
+		            				
+		            				if(lastCell == 6) {
+		            					typeTwoVo = new KtVodExcelTypeTwoVo();
+		            					if(!"순번".equals(headerList.get(0))) {
+		            						return false;
+		            					}
+		            					
+		            					switch (cellIndex) {
+		                                    case 0:  
+		                                    	typeTwoVo.setNo(Integer.parseInt(value));
+		                                        break;
+		                                    case 1: 
+		                                    	typeTwoVo.setCpName(value);
+		                                        break;
+		                                    case 2: 
+		                                    		                                    	
+		            							typeTwoVo.setContract(value);
+		                                        break;
+		                                    case 3: 
+	                                    		dateStr = StringUtil.getRexStr(value,"[0-9]{1,}회$|[0-9]{1,}회$|[0-9]{1,}회 |[0-9]{1,3}화$|[0-9]{1,3}화 |[0-9]{1,}부$|[0-9]{6,}|[0-9-]{10,}").trim(); //
+	                                    		replaceStr = StringUtil.getRexStr(value,"^TEST_[a-zA-Z]{3}[0-9]{6}|^지상파_[a-zA-Z]{3}[0-9]{6}|"
+		            									+ "^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}[0-9]{8}|"
+		            									+ "^TV다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^TV다시보기_[a-zA-Z]{3}[0-9]{6}|"
+		            									+ "^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|"
+		            									+ "^TV 다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV 다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{1,}화\\s|"
+		            									+ "^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회\\s|^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{4}-[0-9]{2}-[0-9]{2}\\s\\[[가-힣]{1}\\]|"
+		            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\][0-9]{1,}회|"
+		            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{2}\\/[0-9]{2}\\s\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]|"
+		            									+ "^[a-zA-Z]{3}_HD[0-9]{6}\\[[가-힣]{1}\\]\\s|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6,}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|"
+		            									+ "^[a-zA-Z]{3}_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{8}_\\[HD\\]|^[a-zA-Z]{3}_[0-9]{8}_|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}|"
+		            									+ "^[a-zA-Z]{3}_[0-9]{2}-[0-9]{2}-[0-9]{2}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}");
+		                                    	titleStr = value.replace( replaceStr, "").replace("_재편성", "").replace("_수정", "").replace("오늘의 추천_", "").replace("지상파_", "").replace("TV다시보기_","").replace("TV 다시보기_", "").replace(dateStr, "").replace("_1", "").replace("[HD]", "").replaceAll("[a-zA-Z]{3}_", "").replaceAll("[_]$", "").trim();
+		            							titleStr = titleStr.replace(StringUtil.getRexStr(value,"[0-9]{1,}회$|\\(HD\\)$"),"").trim();
+		                                    	programNm = value;
+		                                    	typeTwoVo.setContnetsNm(value);
+		                                        break;
+		                                    case 4: 
+		                                    	typeTwoVo.setAmount(Integer.parseInt(value));
+		                                        break;
+		                                    case 5: 
+		                                    	typeTwoVo.setChargeCnt(Integer.parseInt(value));
+		                                        break;
+		                                    default:
+		            					}
+		            					
+		            				}else if(lastCell == 12) {
+		            					
+		            					typeOneVo = new KtVodExcelTypeOneVo();
+		            					
+		            					if(!"CP명".equals(headerList.get(0))) {
+		            						return false;
+		            					}
+		            					
+		            					switch (cellIndex) {
+		                                    case 0:  
+		                                        typeOneVo.setCpName(value);
+		                                        break;
+		                                    case 1: 
+		                                        typeOneVo.setMcpName(value);
+		                                        break;
+		                                    case 2: 
+		                                    	
+		                                    	dateStr = StringUtil.getRexStr(value,"[0-9]{1,}회$|[0-9]{1,}회$|[0-9]{1,}회 |[0-9]{1,3}화$|[0-9]{1,3}화 |[0-9]{1,}부$|[0-9]{6,}|[0-9-]{10,}").trim(); //
+		                                    	replaceStr = StringUtil.getRexStr(value,"^TEST_[a-zA-Z]{3}[0-9]{6}|^지상파_[a-zA-Z]{3}[0-9]{6}|"
+		            									+ "^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}[0-9]{8}|"
+		            									+ "^TV다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^TV다시보기_[a-zA-Z]{3}[0-9]{6}|"
+		            									+ "^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|"
+		            									+ "^TV 다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV 다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{1,}화\\s|"
+		            									+ "^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회\\s|^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{4}-[0-9]{2}-[0-9]{2}\\s\\[[가-힣]{1}\\]|"
+		            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\][0-9]{1,}회|"
+		            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{2}\\/[0-9]{2}\\s\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]|"
+		            									+ "^[a-zA-Z]{3}_HD[0-9]{6}\\[[가-힣]{1}\\]\\s|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6,}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|"
+		            									+ "^[a-zA-Z]{3}_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{8}_\\[HD\\]|^[a-zA-Z]{3}_[0-9]{8}_|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}|"
+		            									+ "^[a-zA-Z]{3}_[0-9]{2}-[0-9]{2}-[0-9]{2}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}");
+		                                    	titleStr = value.replace( replaceStr, "").replace("_재편성", "").replace("_수정", "").replace("오늘의 추천_", "").replace("지상파_", "").replace("TV다시보기_","").replace("TV 다시보기_", "").replace(dateStr, "").replace("_1", "").replace("[HD]", "").replaceAll("[a-zA-Z]{3}_", "").replaceAll("[_]$", "").trim();
+		            							titleStr = titleStr.replace(StringUtil.getRexStr(value,"[0-9]{1,}회$|\\(HD\\)$"),"").trim();
+		            							
+		            							programNm = value;
+		                                        typeOneVo.setContnetsNm(value);
+		                                        break;
+		                                    case 3: 
+		                                    	
+		                                    	if("".equals(dateStr)){
+		                                    		dateStr = StringUtil.getRexStr(value,"[0-9]{1,}회$|[0-9]{1,}회$|[0-9]{1,}회 |[0-9]{1,3}화$|[0-9]{1,3}화 |[0-9]{1,}부$|[0-9]{6,}|[0-9-]{10,}").trim(); //
+		                                    	}
+		                                    	if("".equals(titleStr)) {
+		                                    		replaceStr = StringUtil.getRexStr(value,"^TEST_[a-zA-Z]{3}[0-9]{6}|^지상파_[a-zA-Z]{3}[0-9]{6}|"
+			            									+ "^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}[0-9]{8}|"
+			            									+ "^TV다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^TV다시보기_[a-zA-Z]{3}[0-9]{6}|"
+			            									+ "^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|"
+			            									+ "^TV 다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV 다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{1,}화\\s|"
+			            									+ "^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회\\s|^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{4}-[0-9]{2}-[0-9]{2}\\s\\[[가-힣]{1}\\]|"
+			            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\][0-9]{1,}회|"
+			            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{2}\\/[0-9]{2}\\s\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]|"
+			            									+ "^[a-zA-Z]{3}_HD[0-9]{6}\\[[가-힣]{1}\\]\\s|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6,}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|"
+			            									+ "^[a-zA-Z]{3}_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{8}_\\[HD\\]|^[a-zA-Z]{3}_[0-9]{8}_|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}|"
+			            									+ "^[a-zA-Z]{3}_[0-9]{2}-[0-9]{2}-[0-9]{2}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}");
+			                                    	titleStr = value.replace( replaceStr, "").replace("_재편성", "").replace("_수정", "").replace("오늘의 추천_", "").replace("지상파_", "").replace("TV다시보기_","").replace("TV 다시보기_", "").replace(dateStr, "").replace("_1", "").replace("[HD]", "").replaceAll("[a-zA-Z]{3}_", "").replaceAll("[_]$", "").trim();
+			            							titleStr = titleStr.replace(StringUtil.getRexStr(value,"[0-9]{1,}회$|\\(HD\\)$"),"").trim();
+		                                    	}
+		                                    	
+		                                        typeOneVo.setContentsSubNm(value);
+		                                        break;
+		                                    case 4: 
+		                                        typeOneVo.setContentsType(value);
+		                                        break;
+		                                    case 5: 
+		                                    	typeOneVo.setScreenType(value);
+		                                        break;
+		                                    case 6: 
+		                                        typeOneVo.setChargeType(value);
+		                                        break;
+		                                    case 7: 
+		                                        typeOneVo.setAmount(Integer.parseInt(value));
+		                                        break;
+		                                    case 8: 
+		                                        break;
+		                                        
+		                                    case 9: 
+		                                        break;
+		                                    case 10: 
+		                                        typeOneVo.setChargeCnt(Integer.parseInt(value));
+		                                        break;
+		                                    case 11: 
+		                                    	typeOneVo.setTotalAmount(Integer.parseInt(value));
+		                                        break;
+		                                    default:
+		            					}
+		            				
+		            				}
+		            			}
+		            		}
+		            		if(rowIndex !=haderRow && ( "".equals(titleStr) || "".equals(dateStr) )) {
+	            				errorVo.setTitle(titleStr);
+	            				errorVo.setBroadDate(dateStr);
+	            				errorVo.setProgramNm(programNm);
+	            				errorVo.setRow(rowIndex);
+	            				ErrorList.add(errorVo);
+	            				continue;
+	            			}
+	            		
+	            			if(lastCell == 6) {
+	            				bodyList.add(typeOneVo);
+	            			}else if(lastCell == 12) {
+	            				bodyList.add(typeOneVo);
+		            		
+	            			}
+		            	}
+		            	
+		            	model.addAttribute("errorList", ErrorList);
+		            	model.addAttribute("headerList", headerList);
+		            	model.addAttribute("bodyList", bodyList);
+		            	result = true;
+		            	
+		            }else {
+		            	FileUtil.fileDelete(fileName, path);
+		            	result = false;
+		            }
+		            		            
+				}catch(Exception e) {
+					log.error(e.getMessage());
+					log.error("엑셀 읽으면서 에러", e);
+					result = false;
+					return result;
+				}finally {
+					fis.close();
+					workbook.close();
+					if(result == false ) {
+						FileUtil.fileDelete(fileName, path);
+						mapper.deleteExcelTmpData(fileVo);
+					}
+				}
+				
+			}
+		}else if(cSeq == 13) {
+
+			if("US".equals(distType)) {
+				
+				FileInputStream fis = null;
+				XSSFWorkbook workbook = null;
+				
+				try {
+					
+					List bodyList = null;
+					List<NotFoundContentsVo> ErrorList = new ArrayList<NotFoundContentsVo>();
+					fis = new FileInputStream(path + "/" + fileName);
+					
+					String titleStr ="";
+					String dateStr ="";
+					String programNm ="";
+					String replaceStr ="";
+					
+					workbook = new XSSFWorkbook(fis);
+					XSSFSheet curSheet;
+		            XSSFRow   curRow;
+		            XSSFCell  curCell;
+		            int lastCell = 0;
+		            int haderRow = 0;
+		            int firstBody = 1;
+		            
+		            curSheet = workbook.getSheetAt(0);
+		            curRow =  curSheet.getRow(haderRow);
+		            lastCell = curRow.getLastCellNum();
+		            
+		            LgVodExcelTypeOneVo typeOneVo = null;
+		            
+		            if(lastCell == 6) {
+		            	bodyList = new ArrayList<LgVodExcelTypeOneVo>();
+		            	for(int rowIndex=0; rowIndex < curSheet.getPhysicalNumberOfRows(); rowIndex++) {
+		            		if(rowIndex != haderRow && rowIndex < firstBody  ) {
+		            			continue;
+		            		}
+		            		curRow =  curSheet.getRow(rowIndex);
+		            		if(curRow == null ) {
+		            			continue;
+		            		}
+		            		NotFoundContentsVo errorVo = new NotFoundContentsVo();
+		            		
+		            		for(int cellIndex=0;cellIndex<curRow.getPhysicalNumberOfCells(); cellIndex++) {
+		            			curCell = curRow.getCell(cellIndex);
+		            			if(haderRow == rowIndex) {
+		            				String header = "";
+		                        	if(curCell != null) {
+		                        		header = curCell.getStringCellValue();
+		                        	}
+				                	headerList.add(header);
+				                	continue;
+		            			}else {
+		            				String value = "";
+		            				if(curCell != null){
+		            							            					
+			            				switch (curCell.getCellTypeEnum()){
+		                                    case FORMULA:
+		                                        value = curCell.getCellFormula();
+		                                        break;
+		                                    case NUMERIC:
+		                                        value =  String.valueOf((int) Math.round(curCell.getNumericCellValue()));
+		                                        break;
+		                                    case STRING:
+		                                        value = curCell.getStringCellValue();
+		                                        break;
+		                                    case BLANK:
+		                                        value = "0";
+		                                        break;
+		                                    case ERROR:
+		                                        value = curCell.getErrorCellValue()+"";
+		                                        break;
+		                                    default:
+		                                        value = new String();
+		                                        break;
+	                                    }
+		            				}
+		            				
+		            				
+	            					typeOneVo = new LgVodExcelTypeOneVo();
+	            					if(!"콘텐츠명".equals(headerList.get(0))) {
+	            						return false;
+	            					}
+	            					
+	            					switch (cellIndex) {
+	                                    case 0:  
+                                    		replaceStr = StringUtil.getRexStr(value,"^TEST_[a-zA-Z]{3}[0-9]{6}|^지상파_[a-zA-Z]{3}[0-9]{6}|"
+	            									+ "^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}[0-9]{8}|"
+	            									+ "^TV다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^TV다시보기_[a-zA-Z]{3}[0-9]{6}|"
+	            									+ "^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|"
+	            									+ "^TV 다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV 다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{1,}화\\s|"
+	            									+ "^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회\\s|^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{4}-[0-9]{2}-[0-9]{2}\\s\\[[가-힣]{1}\\]|"
+	            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\][0-9]{1,}회|"
+	            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{2}\\/[0-9]{2}\\s\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]|"
+	            									+ "^[a-zA-Z]{3}_HD[0-9]{6}\\[[가-힣]{1}\\]\\s|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6,}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|"
+	            									+ "^[a-zA-Z]{3}_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{8}_\\[HD\\]|^[a-zA-Z]{3}_[0-9]{8}_|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}|"
+	            									+ "^[a-zA-Z]{3}_[0-9]{2}-[0-9]{2}-[0-9]{2}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}");
+	                                    	titleStr = value.replace( replaceStr, "").replace("_재편성", "").replace("_수정", "").replace("오늘의 추천_", "").replace("지상파_", "").replace("TV다시보기_","").replace("TV 다시보기_", "").replace(dateStr, "").replace("_1", "").replace("[HD]", "").replaceAll("[a-zA-Z]{3}_", "").replaceAll("[_]$", "").trim();
+	            							titleStr = titleStr.replace(StringUtil.getRexStr(value,"[0-9]{1,}회$|\\(HD\\)$"),"").trim();
+	                                    	programNm = titleStr;
+	                                    	typeOneVo.setContnetsNm(value);
+	                                        break;
+	                                    case 1: 
+	                                    	dateStr = value;
+	                                    	typeOneVo.setBroadDate(value);
+	                                        break;
+	                                    case 2: 
+	                                    		                                    	
+	                                    	typeOneVo.setProType(value);
+	                                        break;
+	                                    case 3: 
+	                                    	typeOneVo.setViewDate(value);
+	                                        break;
+	                                    case 4: 
+	                                    	typeOneVo.setJoinCnt(Integer.parseInt(value));
+	                                        break;
+	                                    case 5: 
+	                                    	typeOneVo.setChargeCnt(Integer.parseInt(value));
+	                                        break;
+	                                    default:
+	            					}
+		            					
+		            			}
+		            		}
+		            		if(rowIndex !=haderRow && ( "".equals(titleStr) || "".equals(dateStr) )) {
+	            				errorVo.setTitle(titleStr);
+	            				errorVo.setBroadDate(dateStr);
+	            				errorVo.setProgramNm(programNm);
+	            				errorVo.setRow(rowIndex);
+	            				ErrorList.add(errorVo);
+	            				continue;
+	            			}
+	            		
+            				bodyList.add(typeOneVo);
+		            	}
+		            	
+		            	model.addAttribute("errorList", ErrorList);
+		            	model.addAttribute("headerList", headerList);
+		            	model.addAttribute("bodyList", bodyList);
+		            	result = true;
+		            	
+		            }else {
+		            	FileUtil.fileDelete(fileName, path);
+		            	result = false;
+		            }
+		            		            
+				}catch(Exception e) {
+					log.error(e.getMessage());
+					log.error("엑셀 읽으면서 에러", e);
+					result = false;
+					return result;
+				}finally {
+					fis.close();
+					workbook.close();
+					if(result == false ) {
+						FileUtil.fileDelete(fileName, path);
+						mapper.deleteExcelTmpData(fileVo);
+					}
+				}
+				
+			}
+		
+		}else if(cSeq == 14) {
+
+			if("US".equals(distType)) {
+				
+				int idx = fileName.lastIndexOf(".");
+				String _fileName = fileName.substring(idx, fileName.length());
+				
+				FileInputStream fis = null;
+				XSSFWorkbook workbook = null;
+				HSSFWorkbook workbook2= null;
+
+				
+				try {
+					
+					List bodyList = null;
+					List<NotFoundContentsVo> ErrorList = new ArrayList<NotFoundContentsVo>();
+					fis = new FileInputStream(path + "/" + fileName);
+					
+					String titleStr ="";
+					String dateStr ="";
+					String programNm ="";
+					String replaceStr ="";
+					
+					
+					if(".xls".equals(_fileName) ) {
+						workbook2=new HSSFWorkbook(fis);
+						
+						HSSFSheet sheet;
+						HSSFRow row;
+						HSSFCell cell;
+						
+						int lastCell = 0;
+			            int haderRow = 0;
+			            int firstBody = 1;		
+			            
+			            sheet = workbook2.getSheetAt(0);
+			            row = sheet.getRow(haderRow);
+			            
+			            lastCell = row.getLastCellNum();
+			            
+			            SkVodExcelTypeOneVo typeOneVo = null;
+			            
+			            if(lastCell == 6 ) {
+			            	bodyList = new ArrayList<SkVodExcelTypeOneVo>();
+			            	for(int rowIndex=0; rowIndex < sheet.getLastRowNum(); rowIndex++) {
+			            		if(rowIndex != haderRow && rowIndex < firstBody  ) {
+			            			continue;
+			            		}
+			            		row =  sheet.getRow(rowIndex);
+			            		
+			            		if(row == null ) {
+			            			continue;
+			            		}
+			            		
+			            		NotFoundContentsVo errorVo = new NotFoundContentsVo();
+			            		
+			            		for(int cellIndex=0;cellIndex<row.getPhysicalNumberOfCells(); cellIndex++) {
+			            			
+			            			cell = row.getCell(cellIndex);
+			            			if(haderRow == rowIndex) {
+			            				String header = "";
+			                        	if(cell != null) {
+			                        		header = cell.getStringCellValue();
+			                        	}
+					                	headerList.add(header);
+					                	continue;
+			            			}else {
+			            				String value = "";
+			            				
+			            				
+			            				if(rowIndex > 47390 ) {
+				            				log.debug("{}", cell );
+				            			}
+			            				
+			            				if(cell != null){
+			            							            					
+				            				switch (cell.getCellTypeEnum()){
+			                                    case FORMULA:
+			                                        value = cell.getCellFormula();
+			                                        break;
+			                                    case NUMERIC:
+			                                        value =  String.valueOf((int) Math.round(cell.getNumericCellValue()));
+			                                        break;
+			                                    case STRING:
+			                                        value = cell.getStringCellValue();
+			                                        break;
+			                                    case BLANK:
+			                                        value = "0";
+			                                        break;
+			                                    case ERROR:
+			                                        value = cell.getErrorCellValue()+"";
+			                                        break;
+			                                    default:
+			                                        value = new String();
+			                                        break;
+		                                    }
+				            				
+				            				typeOneVo = new SkVodExcelTypeOneVo();
+			            					if(!"0.기준일자".equals(headerList.get(0))) {
+			            						return false;
+			            					}
+			            					
+			            					switch (cellIndex) {
+			                                    case 0:  
+			                                    	typeOneVo.setViewDate(value);
+			                                        break;
+			                                    case 1: 
+			                                    	typeOneVo.setContract(value);
+			                                        break;
+			                                    case 2: 
+			                                    		                                    	
+			                                    	replaceStr = StringUtil.getRexStr(value,"^TEST_[a-zA-Z]{3}[0-9]{6}|^지상파_[a-zA-Z]{3}[0-9]{6}|"
+			            									+ "^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}[0-9]{8}|"
+			            									+ "^TV다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^TV다시보기_[a-zA-Z]{3}[0-9]{6}|"
+			            									+ "^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|"
+			            									+ "^TV 다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV 다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{1,}화\\s|"
+			            									+ "^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회\\s|^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{4}-[0-9]{2}-[0-9]{2}\\s\\[[가-힣]{1}\\]|"
+			            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\][0-9]{1,}회|"
+			            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{2}\\/[0-9]{2}\\s\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]|"
+			            									+ "^[a-zA-Z]{3}_HD[0-9]{6}\\[[가-힣]{1}\\]\\s|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6,}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|"
+			            									+ "^[a-zA-Z]{3}_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{8}_\\[HD\\]|^[a-zA-Z]{3}_[0-9]{8}_|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}|"
+			            									+ "^[a-zA-Z]{3}_[0-9]{2}-[0-9]{2}-[0-9]{2}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}");
+			                                    	titleStr = value.replace( replaceStr, "").replace("_재편성", "").replace("_수정", "").replace("오늘의 추천_", "").replace("지상파_", "").replace("TV다시보기_","").replace("TV 다시보기_", "").replace(dateStr, "").replace("_1", "").replace("[HD]", "").replaceAll("[a-zA-Z]{3}_", "").replaceAll("[_]$", "").trim();
+			            							titleStr = titleStr.replace(StringUtil.getRexStr(value,"[0-9]{1,}회$|\\(HD\\)$"),"").trim();
+			                                    	
+			            							programNm = titleStr;
+			                                    	typeOneVo.setContnetsNm(value);
+			                                        break;
+			                                    case 3: 
+			                                    	dateStr = StringUtil.getRexStr(value,"[0-9]{1,}회$|[0-9]{1,}회$|[0-9]{1,}회 |[0-9]{1,3}화$|[0-9]{1,3}화 |[0-9]{1,}부$|[0-9]{6,}|[0-9-]{10,}").trim(); //
+			                                    	typeOneVo.setContnetsSubNm(value);
+			                                        break;
+			                                    case 4: 
+			                                    	typeOneVo.setJoinCnt(Integer.parseInt(value));
+			                                        break;
+			                                    case 5: 
+			                                    	typeOneVo.setChargeCnt(Integer.parseInt(value));
+			                                        break;
+			                                    default:
+			            					}
+			            				}
+			            				
+		            				}
+			            		}
+			            		if(rowIndex !=haderRow && ( "".equals(titleStr) || "".equals(dateStr) )) {
+		            				errorVo.setTitle(titleStr);
+		            				errorVo.setBroadDate(dateStr);
+		            				errorVo.setProgramNm(programNm);
+		            				errorVo.setRow(rowIndex);
+		            				ErrorList.add(errorVo);
+		            				continue;
+		            			}
+			            		
+	            				bodyList.add(typeOneVo);
+			            	}
+		            	
+			            	model.addAttribute("errorList", ErrorList);
+			            	model.addAttribute("headerList", headerList);
+			            	model.addAttribute("bodyList", bodyList);
+			            	result = true;
+			            	
+			            }else {
+			            	
+			            	result = false;
+			            }
+					}else {
+						workbook = new XSSFWorkbook(fis);	
+						
+						XSSFSheet curSheet;
+			            XSSFRow   curRow;
+			            XSSFCell  curCell;
+			            int lastCell = 0;
+			            int haderRow = 2;
+			            int firstBody = 3;
+			            
+			            curSheet = workbook.getSheetAt(0);
+			            curRow =  curSheet.getRow(haderRow);
+			            lastCell = curRow.getLastCellNum();
+			            
+			            SkVodExcelTypeOneVo typeOneVo = null;
+						
+						 if(lastCell == 8) {
+							bodyList = new ArrayList<SkVodExcelTypeOneVo>();	
+			            	for(int rowIndex=0; rowIndex < curSheet.getPhysicalNumberOfRows(); rowIndex++) {
+			            		if(rowIndex != haderRow && rowIndex < firstBody  ) {
+			            			continue;
+			            		}
+			            		curRow =  curSheet.getRow(rowIndex);
+			            		
+			            		if(curRow == null ) {
+			            			continue;
+			            		}
+			            		
+			            		NotFoundContentsVo errorVo = new NotFoundContentsVo();
+			            		
+			            		for(int cellIndex=0;cellIndex<curRow.getPhysicalNumberOfCells(); cellIndex++) {
+			            			curCell = curRow.getCell(cellIndex);
+			            			if(cellIndex == 0) {
+			            				continue;
+			            			}
+			            			
+			            			if(haderRow == rowIndex) {
+			            				String header = "";
+			                        	if(curCell != null) {
+			                        		header = curCell.getStringCellValue();
+			                        	}
+					                	headerList.add(header);
+					                	continue;
+			            			}else {
+			            				String value = "";
+			            				if(curCell != null){
+			            							            					
+				            				switch (curCell.getCellTypeEnum()){
+			                                    case FORMULA:
+			                                        value = curCell.getCellFormula();
+			                                        break;
+			                                    case NUMERIC:
+			                                        value =  String.valueOf((int) Math.round(curCell.getNumericCellValue()));
+			                                        break;
+			                                    case STRING:
+			                                        value = curCell.getStringCellValue();
+			                                        break;
+			                                    case BLANK:
+			                                        value = "0";
+			                                        break;
+			                                    case ERROR:
+			                                        value = curCell.getErrorCellValue()+"";
+			                                        break;
+			                                    default:
+			                                        value = new String();
+			                                        break;
+		                                    }
+			            				}
+			            				
+			            				
+		            					typeOneVo = new SkVodExcelTypeOneVo();
+		            					if(!"기준일자".equals(headerList.get(0))) {
+		            						return false;
+		            					}
+		            					switch (cellIndex) {
+		                                    case 1:  
+		                                    	typeOneVo.setViewDate(value);
+		                                        break;
+		                                    case 2: 
+		                                    	typeOneVo.setCategory(value);
+		                                        break;
+		                                    case 3: 
+		                                    		                                    	
+		                                    	typeOneVo.setBroadDate(value);
+		                                        break;
+		                                    case 4: 
+		                                    	
+		                                    	replaceStr = StringUtil.getRexStr(value,"^TEST_[a-zA-Z]{3}[0-9]{6}|^지상파_[a-zA-Z]{3}[0-9]{6}|"
+		            									+ "^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}[0-9]{8}|"
+		            									+ "^TV다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^TV다시보기_[a-zA-Z]{3}[0-9]{6}|"
+		            									+ "^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]\\s|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}\\[[가-힣]{1}\\]|"
+		            									+ "^TV 다시보기_[a-zA-Z]{3}\\s{1,2}[0-9]{6}\\s{0,1}\\[[가-힣]{1}\\]|^TV 다시보기_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{1,}화\\s|"
+		            									+ "^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회\\s|^[a-zA-Z]{3}_\\[HD\\][0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{4}-[0-9]{2}-[0-9]{2}\\s\\[[가-힣]{1}\\]|"
+		            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\][0-9]{1,}회|"
+		            									+ "^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{2}\\/[0-9]{2}\\s\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6}\\[[가-힣]{1}\\]|"
+		            									+ "^[a-zA-Z]{3}_HD[0-9]{6}\\[[가-힣]{1}\\]\\s|^[a-zA-Z]{3}_\\[HD\\]\\s[0-9]{6,}\\[[가-힣]{1}\\]\\s[0-9]{1,}회|"
+		            									+ "^[a-zA-Z]{3}_[0-9]{6}\\[[가-힣]{1}\\]|^[a-zA-Z]{3}_[0-9]{8}_\\[HD\\]|^[a-zA-Z]{3}_[0-9]{8}_|^TV 다시보기_[a-zA-Z]{3}[0-9]{6}|"
+		            									+ "^[a-zA-Z]{3}_[0-9]{2}-[0-9]{2}-[0-9]{2}\\[[가-힣]{1}\\]|^TV 다시보기_[a-zA-Z]{3}");
+		                                    	titleStr = value.replace( replaceStr, "").replace("_재편성", "").replace("_수정", "").replace("오늘의 추천_", "").replace("지상파_", "").replace("TV다시보기_","").replace("TV 다시보기_", "").replace(dateStr, "").replace("_1", "").replace("[HD]", "").replaceAll("[a-zA-Z]{3}_", "").replaceAll("[_]$", "").trim();
+		            							titleStr = titleStr.replace(StringUtil.getRexStr(value,"[0-9]{1,}회$|\\(HD\\)$"),"").trim();
+		                                    	
+		            							programNm = titleStr;
+		                                    	typeOneVo.setContnetsNm(value);
+		                                        break;
+		                                    case 5: 
+		                                    	
+		                                    	dateStr = StringUtil.getRexStr(value,"[0-9]{1,}회$|[0-9]{1,}회$|[0-9]{1,}회 |[0-9]{1,3}화$|[0-9]{1,3}화 |[0-9]{1,}부$|[0-9]{6,}|[0-9-]{10,}").trim(); //
+		                                    	typeOneVo.setContnetsSubNm(value);
+		                                        break;
+		                                    case 6: 
+		                                    	typeOneVo.setChargeCnt(Integer.parseInt(value));
+		                                        break;
+		                                    case 7: 
+		                                    	typeOneVo.setTotalAmount(Integer.parseInt(value));
+		                                        break;
+		                                    default:
+		            					}
+		            				}
+			            		}
+			            		if(rowIndex !=haderRow && ( "".equals(titleStr) || "".equals(dateStr) )) {
+		            				errorVo.setTitle(titleStr);
+		            				errorVo.setBroadDate(dateStr);
+		            				errorVo.setProgramNm(programNm);
+		            				errorVo.setRow(rowIndex);
+		            				ErrorList.add(errorVo);
+		            				continue;
+		            			}
+		            		
+	            				bodyList.add(typeOneVo);
+			            	}
+			            	
+			            	model.addAttribute("errorList", ErrorList);
+			            	model.addAttribute("headerList", headerList);
+			            	model.addAttribute("bodyList", bodyList);
+			            	result = true;
+			            	
+			            }else {
+			            	
+			            	result = false;
+			            }
+					}
+				}catch(Exception e) {
+					log.error(e.getMessage());
+					log.error("엑셀 읽으면서 에러", e);
+					result = false;
+					return result;
+				}finally {
+					fis.close();
+					if(workbook != null) {
+						workbook.close();
+					}
+					
+					if(workbook2 != null) {
+						workbook2.close();
+					}
+					if(result == false ) {
+						FileUtil.fileDelete(fileName, path);
+						mapper.deleteExcelTmpData(fileVo);
+					}
+				}
+				
+			}
+		}
+		log.debug("EXCEL UPLOAD 에러");
+		
+		return result;
+	}
+
+}

@@ -1,0 +1,16 @@
+package kr.co.kbs.distribute.mapper.common;
+
+import java.sql.SQLException;
+
+import org.springframework.stereotype.Repository;
+
+import kr.co.kbs.distribute.common.vo.FileVo;
+import kr.co.kbs.distribute.common.vo.SaveGroupVo;
+
+@Repository
+public interface SaveGroupMapper {
+	void updateSaveGroup(SaveGroupVo param) throws SQLException;
+	int insertSaveGroup(SaveGroupVo param) throws SQLException;
+	int selectMaxKey() throws SQLException;
+	void deleteSaveGroup(FileVo param) throws SQLException;
+}

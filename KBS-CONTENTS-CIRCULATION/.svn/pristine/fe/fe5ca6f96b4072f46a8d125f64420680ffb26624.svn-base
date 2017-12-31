@@ -1,0 +1,13 @@
+package kr.co.kbs.distribute.mapper.program;
+
+import java.sql.SQLException;
+
+import org.springframework.stereotype.Repository;
+
+import kr.co.kbs.distribute.common.vo.FileVo;
+
+@Repository
+public interface UsageStatProgramExcelMapper {
+	void insertExcelTmpfile(FileVo param) throws SQLException;
+	void deleteExcelTmpData(FileVo param) throws SQLException;
+}

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.co.kbs.distribute.mapper.common.SaveGroupMapper">
+	<select id="selectMaxKey" resultType="int">
+		SELECT MAX(TG_SEQ) FROM SAVE_GROUP
+	</select>
+	
+	<insert id="insertSaveGroup" parameterType="saveGroupVo" >
+		INSERT INTO SAVE_GROUP(
+			C_SEQ,
+			DIST_TYPE,
+			ATTACH_FILE,
+			ATTACH_FILE_REAL,
+			ATTACH_FILE_DIR,
+			STATUS,
+			INPUT_ID,
+			INPUT_DT
+		)VALUES(
+			#{cSeq},
+			#{distType},
+			#{attachFile},
+			#{attachFileReal},
+			#{attachFileDir},
+			'A',
+			#{loginUser},
+			NOW()
+		)
+	
+	</insert>
+	
+	<update id="updateSaveGroup" parameterType="saveGroupVo">
+		UPDATE SAVE_GROUP 
+		<set>
+			<if test="cSeq != null and cSeq !=0">C_SEQ = #{cSeq},</if>
+			<if test="distType != null and distType != ''">DIST_TYPE = #{distType},</if>
+			<if test="attachFile != null and attachFile != ''">ATTACH_FILE = #{attachFile},</if>
+			<if test="attachFileDir != null and attachFileDir != ''">ATTACH_FILE_DIR = #{attachFileDir},</if>
+			<if test="status != null and status != ''">status = #{status},</if>
+			UPDATE_ID = #{loginUser},
+			UPDATE_DT = NOW()
+		</set>
+		WHERE TG_SEQ = #{tgSeq}
+	</update>
+	
+	<delete id="deleteSaveGroup" parameterType="fileVo">
+		DELETE FROM SAVE_GROUP
+		WHERE attachFileReal = #{originFilenm}
+		AND ATTACH_FILE = #{saveFilenm}
+		AND C_SEQ = #{cSeq}
+		AND attachFileDir = #{saveDir}
+	</delete>
+</mapper>
